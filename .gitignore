@@ -1,0 +1,6 @@
+# সবকিছু ignore করো
+*
+
+# কিন্তু এই দুইটা ignore করো না
+!.gitignore
+!LinearRegression(no3)/
