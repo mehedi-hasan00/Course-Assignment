@@ -3,34 +3,57 @@ import joblib
 import string
 import nltk
 import pandas as pd
+import os
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-# ✅ set page config must be first Streamlit command
 st.set_page_config(
     page_title="Amazon Review Sentiment Analysis",
     page_icon="🛒",
     layout="centered"
 )
 
-# NLTK setup
-nltk_packages = ['punkt','stopwords','wordnet','omw-1.4']
-for pkg in nltk_packages:
-    try:
-        nltk.data.find(pkg)
-    except LookupError:
-        nltk.download(pkg)
 
-# Load model
+# NLTK Setup
+nltk_data_path = os.path.join(os.getcwd(), 'nltk_data')
+if not os.path.exists(nltk_data_path):
+    os.makedirs(nltk_data_path)
+nltk.data.path.append(nltk_data_path)
+
+packages = [
+    ('punkt', 'tokenizers/punkt'),
+    ('stopwords', 'corpora/stopwords'),
+    ('wordnet', 'corpora/wordnet'),
+    ('omw-1.4', 'corpora/omw-1.4')
+]
+
+for name, path in packages:
+    try:
+        nltk.data.find(path)
+    except LookupError:
+        nltk.download(name, download_dir=nltk_data_path)
+
+
 @st.cache_resource
 def load_model():
-    return joblib.load("sentiment_pipeline.pkl")
 
-model = load_model()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = os.path.join(current_dir, "sentiment_pipeline.pkl")
+    
+    return joblib.load(model_path)
+
+try:
+    model = load_model()
+except FileNotFoundError:
+    st.error("Error: 'sentiment_pipeline.pkl' file not found. Please make sure it is in the same folder.")
+    st.stop()
+
 
 # Preprocessing
+
 punctuations = set(string.punctuation)
-stop_words = set(stopwords.words('english')) - {'not','no','never'}
+stop_words = set(stopwords.words('english')) - {'not', 'no', 'never'}
 lemmatizer = WordNetLemmatizer()
 
 def preprocess_text(text):
@@ -42,31 +65,38 @@ def preprocess_text(text):
         if word.lower() not in stop_words
     ]
     return ' '.join(words)
-
-# Streamlit UI
+# app header
 st.title("🛒 Amazon Review Sentiment Analysis")
 st.write("Enter an Amazon Product Review to Analyze its Sentiment")
 
 user_review = st.text_area(
     "Review Text:",
     height=150,
-    placeholder="Type your review here..."
+    placeholder="Type your review here... (e.g., This product is amazing!)"
 )
 
-if st.button("Analyze Sentiment"):
+if st.button("Analyze Sentiment", type="primary"):
     if user_review.strip():
         with st.spinner("Analyzing..."):
-            cleaned = preprocess_text(user_review)
-            df = pd.DataFrame({'reviewText': [cleaned]})
-            prediction = model.predict(df)[0]
+            try:
+                # Preprocess the text
+                cleaned = preprocess_text(user_review)
+                
+                df = pd.DataFrame({'reviewText': [cleaned]})
+                
+                # Predict
+                prediction = model.predict(df)[0]
 
-            if prediction == 1:
-                st.success("✅ **Result:** POSITIVE")
-            else:
-                st.error("❌ **Result:** NEGATIVE")
+                st.divider()
+                if prediction == 1:
+                    st.success("✅ **Result:**  **POSITIVE** Review! 😊")
+                else:
+                    st.error("❌ **Result:**  **NEGATIVE** Review! 😞")
+            
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
     else:
-        st.warning("Please enter a review text.")
+        st.warning("⚠️ Please enter a review text first.")
 
 st.markdown("---")
-st.caption("Model: Logistic Regression | Deployed with Streamlit")
-
+st.caption("Model: Logistic Regression")
